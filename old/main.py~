@@ -1,0 +1,106 @@
+### Author: Raj Rijhwani
+### Description: Displays helpful orientation advice for drinkers
+### Category: Wearables
+### License: MIT
+
+import ugfx, pyb, buttons
+from imu import IMU
+
+ugfx.init()
+ugfx.clear()
+buttons.init()
+old_font=ugfx.FONT_NAME
+ugfx.set_default_font(ugfx.FONT_NAME)
+SCREEN_DURATION = 2000
+
+def olabel:
+    #ugfx.text(5, 160, str("{:3d}".format(orientation))+" ("+str("{:0.2f}".format(ox))+","+str("{:0.2f}".format(oy))+")", ugfx.WHITE)
+    ugfx.text(5, ugfx.height() - 20, str("{:3d}".format(orientation))+" ("+str("{:0.2f}".format(ox))+","+str("{:0.2f}".format(oy))+","+str("{:0.2f}".format(oz))+")", ugfx.WHITE)
+
+def screen_l0():
+    ugfx.clear(ugfx.html_color(0x7c1143))
+    ugfx.set_default_font(ugfx.FONT_NAME)
+    ugfx.text(5,  10, "No assistance ", ugfx.WHITE)
+    ugfx.text(5,  110, "currently ", ugfx.WHITE)
+    ugfx.text(5,  160, "required ", ugfx.WHITE)
+    ugfx.set_default_font(ugfx.FONT_MEDIUM)
+    olabel()
+
+def screen_l1():
+    ugfx.clear(ugfx.html_color(0x7c1143))
+    ugfx.set_default_font(ugfx.FONT_NAME)
+    ugfx.text(5,  10, "Please return ", ugfx.WHITE)
+    ugfx.text(5,  60, "to upright ", ugfx.WHITE)
+    ugfx.text(5, 110, "position ", ugfx.WHITE)
+    ugfx.set_default_font(ugfx.FONT_MEDIUM)
+    #ugfx.text(5, 160, str("{:3d}".format(orientation))+" ("+str("{:0.2f}".format(ox))+","+str("{:0.2f}".format(oy))+")", ugfx.WHITE)
+    ugfx.text(5, ugfx.height() - 20, str("{:3d}".format(orientation))+" ("+str("{:0.2f}".format(ox))+","+str("{:0.2f}".format(oy))+","+str("{:0.2f}".format(oz))+")", ugfx.WHITE)
+
+def screen_p():
+    ugfx.clear(ugfx.html_color(0x7c1143))
+    ugfx.set_default_font(ugfx.FONT_NAME)
+    ugfx.text(5,  10, "Please ", ugfx.WHITE)
+    ugfx.text(5,  60, "return to ", ugfx.WHITE)
+    ugfx.text(5, 110, "upright ", ugfx.WHITE)
+    ugfx.text(5, 160, "position ", ugfx.WHITE)
+    ugfx.set_default_font(ugfx.FONT_MEDIUM)
+    #ugfx.text(5, 160, str("{:3d}".format(orientation))+" ("+str("{:0.2f}".format(ox))+","+str("{:0.2f}".format(oy))+")", ugfx.WHITE)
+    ugfx.text(5, ugfx.height() - 20, str("{:3d}".format(orientation))+" ("+str("{:0.2f}".format(ox))+","+str("{:0.2f}".format(oy))+","+str("{:0.2f}".format(oz))+")", ugfx.WHITE)
+
+next_change = 0;
+imu=IMU()
+orientation = 999
+
+while True:
+
+    ival = imu.get_acceleration()
+    ox = ival['x']
+    oy = ival['y']
+    oz = ival['z']
+
+    if abs(oy) > abs(ox):
+# landscape
+        if oy<-0.1:
+            if orientation != 0:
+                ugfx.orientation(0)
+                orientation = 0
+                if abs(ox)<0.5 and abs(oz)<0.5:
+# vaguely upright
+                    screen_l0()
+                else:
+# tilting too far
+                    screen_l1()
+        elif oy>0.1:
+# umop apisdn
+            if orientation != 180:
+                ugfx.orientation(180)
+                orientation = 180
+                screen_l1()
+    else:
+# portrait (i.e lying down)
+        if ox>0.1:
+            if orientation != 90:
+                ugfx.orientation(90)
+                orientation = 90
+                screen_p()
+        elif ox<-0.1:
+            if orientation != 270:
+                ugfx.orientation(270)
+                orientation = 270
+                screen_p()
+
+    if pyb.millis()>next_change:
+        next_change = pyb.millis() + SCREEN_DURATION
+
+    pyb.wfi()
+
+    if buttons.is_triggered("BTN_MENU") or buttons.is_triggered("BTN_A") or buttons.is_triggered("BTN_B") or buttons.is_triggered("JOY_CENTER"):
+        break;
+
+# end of while
+
+ugfx.set_default_font(old_font)
+ugfx.clear()
+
+
+
