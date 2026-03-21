@@ -10,9 +10,30 @@ from app_components import clear_background
 from events.input import Buttons, BUTTON_TYPES
 from app_components.tokens import line_height
 
+THRESHOLD=2
+
 class BarAssistApp(app.App):
     def __init__(self):
         self.button_states = Buttons(self)
+        self.last_orientation = None
+
+    def __get_orientation(self):
+        #self.acc_read = imu.acc_read()
+        acc_read = imu.acc_read()
+        self.ox = float('{0:.1f}'.format(acc_read[0] * 9))
+        self.oy = float('{0:.1f}'.format(acc_read[1] * 9))
+        self.oz = float('{0:.1f}'.format(acc_read[2] * 9))
+        if self.ox>75:
+            self.orientation = 0
+        elif abs(self.oz)>45 or self.ox>abs(self.oy):
+            self.orientation = 1
+        elif abs(self.oy)>abs(self.ox):
+            if self.oy<0:
+                self.orientation = 2
+            else:
+                self.orientation = 4
+        else:
+            self.orientation = 3
 
     def update(self, delta):
         if self.button_states.get(BUTTON_TYPES["CANCEL"]):
@@ -21,19 +42,19 @@ class BarAssistApp(app.App):
             # open. Without it the app would close again immediately.
             self.button_states.clear()
             self.minimise()
-        else:
-            # check orientation and display accordingly
-            self.acc_read = imu.acc_read()
-            ox = '{0:.1f}'.format(self.acc_read[0] * 9)
-            oy = '{0:.1f}'.format(self.acc_read[1] * 9)
-            oz = '{0:.1f}'.format(self.acc_read[2] * 9)
-            print(f'Orientation: ({ox}, {oy}, {oz})')
+            print('exit')
 
     def draw(self, ctx):
-        ctx.save()
-        ctx.rgb(0.2, 0, 0).rectangle(-120, -120, 240, 240).fill()
-        ctx.rgb(1, 0, 0).move_to(-80, 0).text(f'({xdeg}, {ydeg}, {zdeg})')
-        ctx.restore()
+        self.__get_orientation()
+        if self.last_orientation != self.orientation:
+            self.last_orientation = self.orientation
+            print(f'({self.ox:.1f}, {self.oy:.1f}, {self.oz:.1f})')
+            print(f'Orientation: {self.orientation})')
+            self.last_orientation != self.orientation
+            ctx.save()
+            ctx.rgb(0.2, 0, 0).rectangle(-120, -120, 240, 240).fill()
+            ctx.rgb(0, 1, 1).move_to(-80, 0).text(f'({self.ox}, {self.oy}, {self.oz})')
+            ctx.restore()
 
 
 __app_export__ = BarAssistApp
