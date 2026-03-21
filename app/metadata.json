@@ -1,4 +1,4 @@
 {
   "name": "Bar assistant",
-  "path": "apps.camopants_barassist.main.py"
+  "path": "apps.camopants_barassist.main"
 }
