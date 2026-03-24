@@ -32,32 +32,23 @@ class BarAssistApp(app.App):
         self.oy = float('{0:.1f}'.format(acc_read[1] * 9))
         self.oz = float('{0:.1f}'.format(acc_read[2] * 9))
 
-        self.pointer = -atan2(-self.oy, -self.ox)/pi*6 + 0.5 # light slot
+        self.rotation = -atan2(self.oy, self.ox)
+        #weighting = min(1.0, int(abs(10 - acc_read[2])) / 9)
+        #self.rotation = atan2(-self.oy, -self.ox)
+        #self.pointer = -self.rotation/pi*6 + 0.5 # light slot
+        self.pointer = self.rotation/pi*6 + 0.5 # light slot
         if self.pointer < 0:
             self.pointer += 12
 
         orientation = 0 if self.orientation==None else self.orientation
         # vaguely upright - no action
-        if self.ox>75:
+        if self.ox>75 and abs(self.oy)<25:
             orientation = 0
         # lying down or tilted too far
-        elif abs(self.oz)>45:
+        elif abs(self.oz)>80:
             orientation = 1
         else:
-            weighting = min(1.0, int(abs(10 - acc_read[2])) / 9)
-            self.rotation_offset = (atan2(acc_read[1], acc_read[0])) * weighting
-
-            # umop apisdn
-            if self.ox<0:
-                orientation = 3
-            #elif abs(self.oz)>45 or self.ox>abs(self.oy):
-            elif abs(self.oy)>abs(self.ox):
-            # sideways left
-                if self.oy<0:
-                    orientation = 2
-                # sideways right
-                else:
-                    orientation = 4
+            orientation = 2
         return orientation
 
     #def update(self, delta):
@@ -85,19 +76,30 @@ class BarAssistApp(app.App):
     def draw(self, ctx):
         def place_text(self, msg, l=0, r=0, g=0.5, b=0.25):
             w = ctx.text_width(msg)
-            ctx.rgb(r, g, b).move_to(-(w/2), 24*l-64).text(msg)
+            ctx.rgb(r, g, b).move_to(-(w/2), 24*l-96).text(msg)
 
         newo = self.__get_orientation()
-        if self.orientation != newo:
+        #if self.orientation != newo:
+        if True:
             self.orientation = newo
             m1 = f'({self.ox:.1f}, {self.oy:.1f}, {self.oz:.1f})'
             m2 = f'Orientation: {newo}'
-            m3 = f'Pointer: {self.pointer:.2f}'
+            if newo==1:
+                m3 = f'Pointer: n/a'
+            else:
+                m3 = f'Pointer: {self.pointer:.2f}'
 
+            ctx.rotate(0 if self.orientation==1 else self.rotation)
             ctx.rgb(0, 0, 0).rectangle(-120, -120, 240, 240).fill()
-            place_text(self, m1, l=2)
-            place_text(self, m2, l=3)
-            place_text(self, m3, l=4)
+            if self.orientation==0:
+                place_text(self, "All good!", l=4)
+            else:
+                place_text(self, "Please return", l=3)
+                place_text(self, "to the upright", l=4)
+                place_text(self, "position", l=5)
+            #place_text(self, m1, l=4)
+            #place_text(self, m2, l=5)
+            #place_text(self, m3, l=6)
 
             print(m1)
             print(m2)
@@ -112,11 +114,7 @@ class BarAssistApp(app.App):
             self.led_control = True
 
         null_colour = (0, 0, 0)
-
-        if self.orientation==0:
-            led_colour = (0, 63, 0)
-        else:
-            led_colour = (63, 0, 0)
+        led_colour = (0, 63, 0) if self.orientation==0 else (63, 0, 0)
 
         # turn everything on (flat on back)
         if self.orientation==1:
@@ -125,15 +123,18 @@ class BarAssistApp(app.App):
         else:
             for i in range(1, 13):
                 tildagonos.leds[i] = null_colour
+            #if 0<=self.pointer<=1:
+            #    led_colour = (0, 63, 0)
             b1 = int(self.pointer)
             v2 = self.pointer - b1
+            b1 = (b1 + 6) % 12
             v1 = 1 - v2
             b2 = b1 + 1
             if b1<1:
                 b1 = 12
             c1 = tuple([int(v1 * c) for c in led_colour])
             c2 = tuple([int(v2 * c) for c in led_colour])
-            #print(f"[{b1}:{c1}]; [{b2}:{c2}]")
+
             tildagonos.leds[b1] = c1
             tildagonos.leds[b2] = c2
 
