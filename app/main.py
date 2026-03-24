@@ -6,7 +6,7 @@
 import app
 import imu
 
-from math import sqrt, atan, atan2
+from math import pi, sqrt, atan, atan2
 
 from app_components import clear_background
 #from app_components.tokens import line_height
@@ -31,7 +31,10 @@ class BarAssistApp(app.App):
         self.ox = float('{0:.1f}'.format(acc_read[0] * 9))
         self.oy = float('{0:.1f}'.format(acc_read[1] * 9))
         self.oz = float('{0:.1f}'.format(acc_read[2] * 9))
-        self.theta = 0 if self.ox == 0 else atan(self.oy/self.ox)
+
+        self.pointer = -atan2(-self.oy, -self.ox)/pi*6 + 0.5 # light slot
+        if self.pointer < 0:
+            self.pointer += 12
 
         orientation = 0 if self.orientation==None else self.orientation
         # vaguely upright - no action
@@ -60,9 +63,6 @@ class BarAssistApp(app.App):
     #def update(self, delta):
     def update(self, _):
         if self.button_states.get(BUTTON_TYPES["CANCEL"]):
-            # The button_states do not update while you are in the background.
-            # Calling clear() ensures the next time you open the app, it stays
-            # open. Without it the app would close again immediately.
             print('clear buttons')
             self.button_states.clear()
             print('re-enable pattern')
@@ -90,23 +90,20 @@ class BarAssistApp(app.App):
         newo = self.__get_orientation()
         if self.orientation != newo:
             self.orientation = newo
-            #v = sqrt(self.ox*self.ox+self.oy*self.oy+self.oz*self.oz)
             m1 = f'({self.ox:.1f}, {self.oy:.1f}, {self.oz:.1f})'
             m2 = f'Orientation: {newo}'
-            m3 = f'Theta: {self.theta:.2f}'
+            m3 = f'Pointer: {self.pointer:.2f}'
 
-            #ctx.save()
-            #ctx.font = ctx.get_font_name(5)
             ctx.rgb(0, 0, 0).rectangle(-120, -120, 240, 240).fill()
             place_text(self, m1, l=2)
             place_text(self, m2, l=3)
             place_text(self, m3, l=4)
-            #ctx.restore()
+
             print(m1)
             print(m2)
             print(m3)
 
-            self.set_leds()
+        self.set_leds()
 
     def set_leds(self):
         if not self.led_control:
@@ -114,34 +111,31 @@ class BarAssistApp(app.App):
             eventbus.emit(PatternDisable())
             self.led_control = True
 
-        null_colour = (0, 0, 15)
+        null_colour = (0, 0, 0)
 
-        for index in range(12):
-            if self.orientation==0:
-                led_colour = (0, 63, 0)
-            else:
-                led_colour = (63, 0, 0)
-            if self.orientation==1:
-                # turn everything on (flat on back)
-                for i in range(1, 13):
-                    tildagonos.leds[i] = led_colour
-            else:
-                # turn everything on ("down" indication)
-                for i in range(1, 13):
-                    tildagonos.leds[i] = null_colour
-                if self.orientation==2:
-                    tildagonos.leds[9] = led_colour
-                    tildagonos.leds[10] = led_colour
-                elif self.orientation==3:
-                    tildagonos.leds[12] = led_colour
-                    tildagonos.leds[1] = led_colour
-                elif self.orientation==4:
-                    tildagonos.leds[3] = led_colour
-                    tildagonos.leds[4] = led_colour
-                else:
-                    tildagonos.leds[6] = led_colour
-                    tildagonos.leds[7] = led_colour
-                #pass
+        if self.orientation==0:
+            led_colour = (0, 63, 0)
+        else:
+            led_colour = (63, 0, 0)
+
+        # turn everything on (flat on back)
+        if self.orientation==1:
+            for i in range(1, 13):
+                tildagonos.leds[i] = led_colour
+        else:
+            for i in range(1, 13):
+                tildagonos.leds[i] = null_colour
+            b1 = int(self.pointer)
+            v2 = self.pointer - b1
+            v1 = 1 - v2
+            b2 = b1 + 1
+            if b1<1:
+                b1 = 12
+            c1 = tuple([int(v1 * c) for c in led_colour])
+            c2 = tuple([int(v2 * c) for c in led_colour])
+            #print(f"[{b1}:{c1}]; [{b2}:{c2}]")
+            tildagonos.leds[b1] = c1
+            tildagonos.leds[b2] = c2
 
         tildagonos.leds.write()
 
