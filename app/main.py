@@ -21,112 +21,118 @@ THRESHOLD=2
 class BarAssistApp(app.App):
     def __init__(self):
         self.button_states = Buttons(self)
-        self.orientation = None
-        self.rotation_offset = 0
-        self.led_control = False
+        self.__orientation = None
+        self.__active = True
+        self.__led_control = False
 
     def __get_orientation(self):
+        """ identify orientation state in space from (x, y, z) vector """
 
         acc_read = imu.acc_read()
-        self.ox = float('{0:.1f}'.format(acc_read[0] * 9))
-        self.oy = float('{0:.1f}'.format(acc_read[1] * 9))
-        self.oz = float('{0:.1f}'.format(acc_read[2] * 9))
+        self.__ox = float('{0:.1f}'.format(acc_read[0] * 9))
+        self.__oy = float('{0:.1f}'.format(acc_read[1] * 9))
+        self.__oz = float('{0:.1f}'.format(acc_read[2] * 9))
 
-        self.rotation = -atan2(self.oy, self.ox)
-        #weighting = min(1.0, int(abs(10 - acc_read[2])) / 9)
-        #self.rotation = atan2(-self.oy, -self.ox)
-        #self.pointer = -self.rotation/pi*6 + 0.5 # light slot
-        self.pointer = self.rotation/pi*6 + 0.5 # light slot
-        if self.pointer < 0:
-            self.pointer += 12
+        self.__rotation = -atan2(self.__oy, self.__ox)
+        self.__downward = self.__rotation/pi*6 + 0.5 # light slot
+        if self.__downward < 0:
+            self.__downward += 12
 
-        orientation = 0 if self.orientation==None else self.orientation
+        orientation = 0 if self.__orientation==None else self.__orientation
         # vaguely upright - no action
-        if self.ox>75 and abs(self.oy)<25:
+        if self.__ox>75 and abs(self.__oy)<25:
             orientation = 0
         # lying down or tilted too far
-        elif abs(self.oz)>80:
+        elif abs(self.__oz)>80:
             orientation = 1
-        else:
+        elif -self.__ox>75:
             orientation = 2
+        else:
+            orientation = 3
         return orientation
 
-    #def update(self, delta):
     def update(self, _):
         if self.button_states.get(BUTTON_TYPES["CANCEL"]):
             print('clear buttons')
             self.button_states.clear()
             print('re-enable pattern')
-            if self.led_control:
+            if self.__led_control:
                 eventbus.emit(PatternEnable())
-                self.led_control = False
-            print('minimise')
+                self.__led_control = False
+            print('minimise and deactivate')
             self.minimise()
+            self.__active = False
             return
-        else:
-            if not self.led_control:
-                print('disable pattern')
-                eventbus.emit(PatternDisable())
-                self.led_control = True
 
 # messages:
 # No assistance currently required
 # Please return to the upright position
 
     def draw(self, ctx):
+        """ place update screen canvas """
         def place_text(self, msg, l=0, r=0, g=0.5, b=0.25):
+            """ place text on relative line, and centre """
             w = ctx.text_width(msg)
             ctx.rgb(r, g, b).move_to(-(w/2), 24*l-96).text(msg)
 
+        if not self.__active:
+            print('inactive draw call')
+            return
+
+        if not self.__led_control:
+            print('disable pattern')
+            eventbus.emit(PatternDisable())
+            self.__led_control = True
+
         newo = self.__get_orientation()
-        #if self.orientation != newo:
+        #if self.__orientation != newo:
         if True:
-            self.orientation = newo
-            m1 = f'({self.ox:.1f}, {self.oy:.1f}, {self.oz:.1f})'
+            self.__orientation = newo
+            m1 = f'({self.__ox:.1f}, {self.__oy:.1f}, {self.__oz:.1f})'
             m2 = f'Orientation: {newo}'
             if newo==1:
                 m3 = f'Pointer: n/a'
             else:
-                m3 = f'Pointer: {self.pointer:.2f}'
+                m3 = f'Pointer: {self.__downward:.2f}'
 
-            ctx.rotate(0 if self.orientation==1 else self.rotation)
+            ctx.rotate(0 if self.__orientation==1 else self.__rotation)
             ctx.rgb(0, 0, 0).rectangle(-120, -120, 240, 240).fill()
-            if self.orientation==0:
-                place_text(self, "All good!", l=4)
+            if self.__orientation==0:
+                place_text(self, "All good!", l=4, r=0, g=1, b=0)
+            elif self.__orientation==2:
+                place_text(self, "Please invert!", l=4, r=1, g=0, b=0)
             else:
-                place_text(self, "Please return", l=3)
-                place_text(self, "to the upright", l=4)
-                place_text(self, "position", l=5)
-            #place_text(self, m1, l=4)
-            #place_text(self, m2, l=5)
-            #place_text(self, m3, l=6)
+                g = 0 if self.__orientation==1 else 0.5
+                r = 1 if self.__orientation==1 else 0.5
+                place_text(self, "Please return", l=3, r=r, g=g, b=0)
+                place_text(self, "to the upright", l=4, r=r, g=g, b=0)
+                place_text(self, "position", l=5, r=r, g=g, b=0)
 
             print(m1)
             print(m2)
             print(m3)
 
-        self.set_leds()
+        self.__set_leds()
 
-    def set_leds(self):
-        if not self.led_control:
+    def __set_leds(self):
+        if not self.__led_control:
             print('disable pattern')
             eventbus.emit(PatternDisable())
-            self.led_control = True
+            self.__led_control = True
 
         null_colour = (0, 0, 0)
-        led_colour = (0, 63, 0) if self.orientation==0 else (63, 0, 0)
+        led_colour = (0, 63, 0) if self.__orientation==0 else (63, 0, 0)
 
         # turn everything on (flat on back)
-        if self.orientation==1:
+        if self.__orientation==1:
             for i in range(1, 13):
                 tildagonos.leds[i] = led_colour
+        # graduated pointer indicating down
         else:
             for i in range(1, 13):
                 tildagonos.leds[i] = null_colour
-            #if 0<=self.pointer<=1:
-            #    led_colour = (0, 63, 0)
-            b1 = int(self.pointer)
-            v2 = self.pointer - b1
+            b1 = int(self.__downward)
+            v2 = self.__downward - b1
             b1 = (b1 + 6) % 12
             v1 = 1 - v2
             b2 = b1 + 1
