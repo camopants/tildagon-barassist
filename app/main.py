@@ -45,7 +45,7 @@ class BarAssistApp(app.App):
         # lying down or tilted too far
         elif abs(self.__oz)>80:
             orientation = 1
-        elif -self.__ox>75:
+        elif -self.__ox<75:
             orientation = 2
         else:
             orientation = 3
@@ -99,7 +99,7 @@ class BarAssistApp(app.App):
             ctx.rgb(0, 0, 0).rectangle(-120, -120, 240, 240).fill()
             if self.__orientation==0:
                 place_text(self, "All good!", l=4, r=0, g=0.5, b=0)
-            elif self.__orientation==2:
+            elif self.__orientation==3:
                 place_text(self, "Please invert!", l=4, r=1, g=0, b=0)
             else:
                 g = 0 if self.__orientation==1 else 0.5
@@ -121,7 +121,7 @@ class BarAssistApp(app.App):
             self.__led_control = True
 
         null_colour = (0, 0, 0)
-        led_colour = (0, 32, 0) if self.__orientation==0 else (32, 0, 0) if self.__orientation==1 else (63, 32, 0)
+        led_colour = (0, 32, 0) if self.__orientation==0 else (63, 32, 0) if self.__orientation==2 else (32, 0, 0)
 
         # turn everything on (flat on back)
         if self.__orientation==1:
