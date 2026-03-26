@@ -98,7 +98,7 @@ class BarAssistApp(app.App):
             ctx.rotate(0 if self.__orientation==1 else self.__rotation)
             ctx.rgb(0, 0, 0).rectangle(-120, -120, 240, 240).fill()
             if self.__orientation==0:
-                place_text(self, "All good!", l=4, r=0, g=1, b=0)
+                place_text(self, "All good!", l=4, r=0, g=0.5, b=0)
             elif self.__orientation==2:
                 place_text(self, "Please invert!", l=4, r=1, g=0, b=0)
             else:
@@ -121,7 +121,7 @@ class BarAssistApp(app.App):
             self.__led_control = True
 
         null_colour = (0, 0, 0)
-        led_colour = (0, 63, 0) if self.__orientation==0 else (63, 0, 0)
+        led_colour = (0, 32, 0) if self.__orientation==0 else (32, 0, 0) if self.__orientation==1 else (63, 32, 0)
 
         # turn everything on (flat on back)
         if self.__orientation==1:
