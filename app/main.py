@@ -72,14 +72,12 @@ class BarAssistApp(app.App):
             v2 = self.__downward - b1
             b1 = (b1 + 6) % 12
             v1 = 1 - v2
-            b2 = b1 + 1
             if b1<1:
-                b1 = 12
-            c1 = tuple([int(v1 * c) for c in led_colour])
-            c2 = tuple([int(v2 * c) for c in led_colour])
+                b1 += 12
+            b2 = (b1 % 12) + 1
 
-            tildagonos.leds[b1] = c1
-            tildagonos.leds[b2] = c2
+            tildagonos.leds[b1] = tuple([int(v1 * c) for c in led_colour])
+            tildagonos.leds[b2] = tuple([int(v2 * c) for c in led_colour])
 
         tildagonos.leds.write()
 
