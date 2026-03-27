@@ -99,7 +99,7 @@ class BarAssistApp(app.App):
         def place_text(self, msg, l=0, r=0, g=0.5, b=0.25):
             """ place text on relative line, and centre """
             w = ctx.text_width(msg)
-            ctx.rgb(r, g, b).move_to(-(w/2), 24*l-96).text(msg)
+            ctx.rgb(r, g, b).move_to(-(w/2), 24*l-84).text(msg)
 
         if not self.__active:
             print('inactive draw call')
