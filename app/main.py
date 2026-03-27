@@ -51,6 +51,38 @@ class BarAssistApp(app.App):
             orientation = 3
         return orientation
 
+    def __set_leds(self):
+        if not self.__led_control:
+            print('disable pattern')
+            eventbus.emit(PatternDisable())
+            self.__led_control = True
+
+        null_colour = (0, 0, 0)
+        led_colour = (0, 32, 0) if self.__orientation==0 else (63, 32, 0) if self.__orientation==2 else (32, 0, 0)
+
+        # turn everything on (flat on back)
+        if self.__orientation==1:
+            for i in range(1, 13):
+                tildagonos.leds[i] = led_colour
+        # graduated pointer indicating down
+        else:
+            for i in range(1, 13):
+                tildagonos.leds[i] = null_colour
+            b1 = int(self.__downward)
+            v2 = self.__downward - b1
+            b1 = (b1 + 6) % 12
+            v1 = 1 - v2
+            b2 = b1 + 1
+            if b1<1:
+                b1 = 12
+            c1 = tuple([int(v1 * c) for c in led_colour])
+            c2 = tuple([int(v2 * c) for c in led_colour])
+
+            tildagonos.leds[b1] = c1
+            tildagonos.leds[b2] = c2
+
+        tildagonos.leds.write()
+
     def update(self, _):
         if self.button_states.get(BUTTON_TYPES["CANCEL"]):
             print('clear buttons')
@@ -63,10 +95,6 @@ class BarAssistApp(app.App):
             self.minimise()
             self.__active = False
             return
-
-# messages:
-# No assistance currently required
-# Please return to the upright position
 
     def draw(self, ctx):
         """ place update screen canvas """
@@ -114,38 +142,6 @@ class BarAssistApp(app.App):
             print(m3)
 
         self.__set_leds()
-
-    def __set_leds(self):
-        if not self.__led_control:
-            print('disable pattern')
-            eventbus.emit(PatternDisable())
-            self.__led_control = True
-
-        null_colour = (0, 0, 0)
-        led_colour = (0, 32, 0) if self.__orientation==0 else (63, 32, 0) if self.__orientation==2 else (32, 0, 0)
-
-        # turn everything on (flat on back)
-        if self.__orientation==1:
-            for i in range(1, 13):
-                tildagonos.leds[i] = led_colour
-        # graduated pointer indicating down
-        else:
-            for i in range(1, 13):
-                tildagonos.leds[i] = null_colour
-            b1 = int(self.__downward)
-            v2 = self.__downward - b1
-            b1 = (b1 + 6) % 12
-            v1 = 1 - v2
-            b2 = b1 + 1
-            if b1<1:
-                b1 = 12
-            c1 = tuple([int(v1 * c) for c in led_colour])
-            c2 = tuple([int(v2 * c) for c in led_colour])
-
-            tildagonos.leds[b1] = c1
-            tildagonos.leds[b2] = c2
-
-        tildagonos.leds.write()
 
 __app_export__ = BarAssistApp
 
