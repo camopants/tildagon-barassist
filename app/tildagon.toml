@@ -31,10 +31,10 @@ license = "LGPL-3.0-only"
 url = "https://codeberg.org/camopants/tildagon-barassist"
 
 # Description of your app.  Maximum 140 characters!
-description = "Orientation assistance for bar occupants"
+description = "Orientation assistance for bar patrons"
 
 # Version number of your app.  If you push a commit where this number is
 # increased, we interpret this as a new version being released.
 #
 # Version number must be an integer!
-version = "0"
+version = "1"
