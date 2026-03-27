@@ -98,7 +98,8 @@ class BarAssistApp(app.App):
             ctx.rotate(0 if self.__orientation==1 else self.__rotation)
             ctx.rgb(0, 0, 0).rectangle(-120, -120, 240, 240).fill()
             if self.__orientation==0:
-                place_text(self, "All good!", l=4, r=0, g=0.5, b=0)
+                ctx.font_size = 64
+                place_text(self, "All good!", l=5, r=0, g=0.5, b=0)
             elif self.__orientation==3:
                 place_text(self, "Please invert!", l=4, r=1, g=0, b=0)
             else:
