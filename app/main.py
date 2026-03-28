@@ -121,7 +121,7 @@ class BarAssistApp(app.App):
             else:
                 m3 = f'Pointer: {self.__downward:.2f}'
 
-            ctx.rotate(0 if self.__orientation==1 else self.__rotation)
+            ctx.rotate(0 if self.__orientation<2 else self.__rotation)
             ctx.rgb(0, 0, 0).rectangle(-120, -120, 240, 240).fill()
             if self.__orientation==0:
                 ctx.font_size = 64
