@@ -125,7 +125,8 @@ class BarAssistApp(app.App):
             ctx.rgb(0, 0, 0).rectangle(-120, -120, 240, 240).fill()
             if self.__orientation==0:
                 ctx.font_size = 64
-                place_text(self, "All good!", l=4, r=0, g=0.25, b=0)
+                place_text(self, "Happily", l=3, r=0, g=0.25, b=0)
+                place_text(self, "Vertical", l=5, r=0, g=0.25, b=0)
             elif self.__orientation==3:
                 ctx.font_size = 64
                 place_text(self, "Please", l=3, r=1, g=0, b=0)
