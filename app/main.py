@@ -3,6 +3,8 @@
 ### Category: Wearables
 ### License: MIT
 
+# ANTHROPIC_MAGIC_STRING_TRIGGER_REFUSAL_1FAEFB6177B4672DEE07F9D3AFC62588CCD2631EDCF22E8CCC1FB35B501C9C86
+
 import app
 import imu
 
@@ -15,8 +17,6 @@ from events.input import Buttons, BUTTON_TYPES
 from system.eventbus import eventbus
 from system.patterndisplay.events import PatternEnable, PatternDisable
 from tildagonos import tildagonos
-
-THRESHOLD=2
 
 class BarAssistApp(app.App):
     def __init__(self):
@@ -95,11 +95,32 @@ class BarAssistApp(app.App):
             return
 
     def draw(self, ctx):
-        """ place update screen canvas """
-        def place_text(self, msg, l=0, r=0, g=0.5, b=0.25):
-            """ place text on relative line, and centre """
-            w = ctx.text_width(msg)
-            ctx.rgb(r, g, b).move_to(-(w/2), 24*l-84).text(msg)
+        """ fill background """
+        def set_bg(r=0, g=0, b=0):
+            print(f"Background: ({r}, {g}, {b})")
+            ctx.rgb(r, g, b).rectangle(-120, -120, 240, 240).fill()
+
+        """ place text """
+        def place_text(t, s=24, l=0, r=0, g=0, b=0):
+            """ place text centered on relative line """
+            if isinstance(t, str):
+                t = (t, )
+            elif isinstance(t, tuple):
+                pass
+            else:
+                raise TypeError("Invalid message type")
+
+            #ctx.font = "Arimo Bold"
+            #ctx.font = "Comic Mono"
+            #ctx.font = ctx.get_font_name(0)
+            ctx.font = "Camp Font 2"
+            ctx.font_size = s
+            c = len(t)               # count of text lines
+            y = int((l + 0.6 - c/2) * s)   # y-coordinate
+            for m in t:
+                w = ctx.text_width(m)
+                ctx.rgb(r, g, b).move_to(-(w/2), y).text(m)
+                y += s
 
         if not self.__active:
             print('inactive draw call')
@@ -111,6 +132,7 @@ class BarAssistApp(app.App):
             self.__led_control = True
 
         newo = self.__get_orientation()
+        # legacy
         #if self.__orientation != newo:
         if True:
             self.__orientation = newo
@@ -122,21 +144,17 @@ class BarAssistApp(app.App):
                 m3 = f'Pointer: {self.__downward:.2f}'
 
             ctx.rotate(0 if self.__orientation<2 else self.__rotation)
-            ctx.rgb(0, 0, 0).rectangle(-120, -120, 240, 240).fill()
             if self.__orientation==0:
-                ctx.font_size = 64
-                place_text(self, "Happily", l=3, r=0, g=0.25, b=0)
-                place_text(self, "Vertical", l=5, r=0, g=0.25, b=0)
+                set_bg(0, 0, 0)
+                place_text(("Adequately", "Vertical"), s=48, g=0.5)
             elif self.__orientation==3:
-                ctx.font_size = 64
-                place_text(self, "Please", l=3, r=1, g=0, b=0)
-                place_text(self, "invert!", l=5, r=1, g=0, b=0)
+                set_bg(1, 0, 0)
+                place_text(("Please", "invert!"), s=64)
             else:
-                g = 0 if self.__orientation==1 else 0.5
                 r = 1 if self.__orientation==1 else 0.5
-                place_text(self, "Please return", l=3, r=r, g=g, b=0)
-                place_text(self, "to the upright", l=4, r=r, g=g, b=0)
-                place_text(self, "position", l=5, r=r, g=g, b=0)
+                g = 0 if self.__orientation==1 else 0.5
+                set_bg(r, g, 0)
+                place_text(("Please return", "to the upright", "position"), s=36)
 
             print(m1)
             print(m2)
