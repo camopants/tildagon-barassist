@@ -63,6 +63,7 @@ class BarAssistApp(app.App):
         if self.__bar_message==None:
             self.__bar_message = "A badge has no name"
             print('set dummy default')
+        # Strings for format testing
         #self.__bar_message = "Mine's a pint of IPA. Thanks."
         #self.__bar_message = "The quick brown fox jumps over the lazy dog"
         #self.__bar_message = "No one would have believed in the last years of the nineteenth century that this world was being watched keenly and closely by intelligences greater than man's."
