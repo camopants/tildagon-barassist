@@ -50,34 +50,46 @@ class BarAssistApp(app.App):
         self.__active = True
         self.__led_control = False
         self.__text_formatted = False
+        self.__msg_count = 0
+        self.__msg_index = 0
+        self.__msg_list = []
+        self.__debounce = False
 
         # read badge message (currently user name)
-        self.__bar_message = None
         try:
-            self.__bar_settings = settings.get("barmessage")
             print('read complex settings')
+            self.__bar_settings = settings.get("barassist")
+            print(self.__bar_settings)
+            for n in range(0, 10):
+                m = self.__bar_settings.get(f'msg{n}')
+                if m:
+                    self.__msg_list.append(m)
+                    self.__msg_count += 1
         except:
-            pass
+            print('barsettings fail')
         if self.__bar_settings==None:
+            print('barsettings empty')
             try:
-                self.__bar_message = settings.get("barmessage")
                 print('read message')
+                m = settings.get("barmessage")
             except:
-                pass
-        if self.__bar_message==None:
-            try:
-                self.__bar_message = f'Call me "{settings.get("name")}"'
-                print('read name')
-            except:
-                pass
-        if self.__bar_message==None:
-            self.__bar_message = "A badge has no name"
-            print('set dummy default')
+                print('read message fail')
+            if m is None:
+                try:
+                    print('read name')
+                    m = f'Call me "{settings.get("name")}"'
+                except:
+                    print('read name fail')
+            if m is None:
+                m = "A badge has no name"
+                print('set dummy default')
+            self.__msg_list = [m]
+            self.__msg_count += 1
         # Strings for format testing
         #self.__bar_message = "Mine's a pint of IPA. Thanks."
         #self.__bar_message = "The quick brown fox jumps over the lazy dog"
         #self.__bar_message = "No one would have believed in the last years of the nineteenth century that this world was being watched keenly and closely by intelligences greater than man's."
-        print(f'Standing message: {self.__bar_message}')
+        print(f'Standing messages: {self.__msg_list}')
 
     def __get_orientation(self):
         """ identify orientation state in space from (x, y, z) vector """
@@ -141,7 +153,7 @@ class BarAssistApp(app.App):
         ctx,                 # canvas object
         text,                # text string
         diameter=DIAMETER,   # display diameter
-        line_spacing=1.2,
+        line_spacing=1,      # font size multiplier for line-pitch
         margin=2             # in pixels
     ):
         """
@@ -197,7 +209,8 @@ class BarAssistApp(app.App):
             lines = []
             current = ""
             current_y = start_y(tokens[0])
-            this_line_width = width_at_y(current_y)
+            #this_line_width = width_at_y(current_y)
+            this_line_width = min(width_at_y(current_y), width_at_y(current_y - ctx.font_size * 0.75))
 
             for token in tokens:
                 if this_line_width is None:
@@ -255,8 +268,6 @@ class BarAssistApp(app.App):
 
             width_fn = make_width_func()
 
-            line_height = font_size * line_spacing
-
             lines = build_lines(tokens, width_fn)
             if lines is None:
                 return False
@@ -291,8 +302,7 @@ class BarAssistApp(app.App):
         # Final layout
         ctx.font_size = best_size
         width_fn = make_width_func()
-        line_height = best_size
-        line_pitch = int(line_height*line_spacing)
+        line_pitch = int(best_size*line_spacing)
 
         lines = build_lines(tokens, width_fn) or tuple()
 
@@ -309,7 +319,17 @@ class BarAssistApp(app.App):
             print('minimise and deactivate')
             self.minimise()
             self.__active = False
-            return
+        elif self.button_states.get(BUTTON_TYPES["UP"]) or self.button_states.get(BUTTON_TYPES["DOWN"]):
+            if not self.__debounce:
+                if self.button_states.get(BUTTON_TYPES["UP"]):
+                    self.__msg_index = (self.__msg_index - 1) % self.__msg_count
+                else:
+                    self.__msg_index = (self.__msg_index + 1) % self.__msg_count
+                self.__best_size = self.__msg_list[self.__msg_index]["size"]
+                self.__message_tuple = self.__msg_list[self.__msg_index]["text"]
+                self.__debounce = True
+        else:
+            self.__debounce = False
 
     def draw(self, ctx):
         """ fill background """
@@ -320,7 +340,7 @@ class BarAssistApp(app.App):
         """ place text """
         def place_text(t, s=24, l=0, r=0, g=0, b=0):
             """ place text centered on relative line """
-            if isinstance(t, str):
+            if isinstance(t, str) or isinstance(t, list):
                 t = (t, )
             elif isinstance(t, tuple):
                 pass
@@ -330,58 +350,66 @@ class BarAssistApp(app.App):
             ctx.font = "Camp Font 2"
             ctx.font_size = s
             c = len(t)                     # count of text lines
-            y = int((l + 0.6 - c/2) * s)   # y-coordinate
+            y = int((l + 0.75 - c/2) * s)   # y-coordinate
+            #print(f'line count: {c}, font size: {s}, start line: {l}, initial y: {y}')
+            #ctx.rgb(255, 255, 255).rectangle(-120, -2, 240, 4).fill() # display the zero-line for debugging
+            #ctx.rgb(255, 255, 0).rectangle(-120, y-2, 240, 4).fill()  # display the y-line for debugging
             for m in t:
-                w = ctx.text_width(m)
-                ctx.rgb(r, g, b).move_to(-(w/2), y).text(m)
-                #ctx.rectangle(-120, y, 240, 2).fill() # display the base-line for debugging
+                o = int(-ctx.text_width(m)/2)
+                ctx.rgb(r, g, b).move_to(o, y).text(m)
+                #ctx.rectangle(-120, y-1, 240, 2).fill() # display the base-line for debugging
+                #ctx.rectangle(o-1, y-s, 2, s).fill()    # display the left placement for debugging
                 y += s
 
         if not self.__active:
             print('inactive draw call')
             return
 
-        if not self.__text_formatted:
-            print('Pre-formatting')
-            self.__best_size, self.__message_tuple = self.__fit_text_in_display(ctx, self.__bar_message)
-            self.__text_formatted = True
-            print(f'{self.__best_size}')
-            print(f'{self.__message_tuple}')
-
         if not self.__led_control:
             print('disable pattern')
             eventbus.emit(PatternDisable())
             self.__led_control = True
 
+        if not self.__text_formatted:
+            print('Pre-formatting')
+            for n, m in enumerate(self.__msg_list):
+                s, t = self.__fit_text_in_display(ctx, m)
+                print(f'{s}')
+                print(f'{t}')
+                self.__msg_list[n] = { "size": s, "text": t }
+            self.__text_formatted = True
+            self.__best_size = self.__msg_list[self.__msg_index]["size"]
+            self.__message_tuple = self.__msg_list[self.__msg_index]["text"]
+            self.__rtu_size, self.__rtu_text = self.__fit_text_in_display(ctx, "Please return to the upright position")
+
         newo = self.__get_orientation()
-        # legacy
-        #if self.__orientation != newo:
-        if True:
-            self.__orientation = newo
-            m1 = f'({self.__ox:.1f}, {self.__oy:.1f}, {self.__oz:.1f})'
-            m2 = f'Orientation: {newo}'
-            if newo==1:
-                m3 = f'Pointer: n/a'
-            else:
-                m3 = f'Pointer: {self.__downward:.2f}'
 
-            ctx.rotate(0 if self.__orientation<2 else self.__rotation)
-            if self.__orientation==0:
-                # Nominal message
-                set_bg(0, 0, 0)
-                place_text(self.__message_tuple, s=self.__best_size, g=0.5)
-            elif self.__orientation==3:
-                set_bg(1, 0, 0)
-                place_text(("Please", "invert!"), s=64)
-            else:
-                r = 1 if self.__orientation==1 else 0.5
-                g = 0 if self.__orientation==1 else 0.5
-                set_bg(r, g, 0)
-                place_text(("Please return", "to the upright", "position"), s=36)
+        self.__orientation = newo
+        m1 = f'({self.__ox:.1f}, {self.__oy:.1f}, {self.__oz:.1f})'
+        m2 = f'Orientation: {newo}'
+        if newo==1:
+            m3 = f'Pointer: n/a'
+        else:
+            m3 = f'Pointer: {self.__downward:.2f}'
 
-            #print(m1)
-            #print(m2)
-            #print(m3)
+        ctx.rotate(0 if self.__orientation<2 else self.__rotation)
+        if self.__orientation==0:
+            # Nominal message
+            set_bg(0, 0, 0)
+            place_text(self.__message_tuple, s=self.__best_size, g=0.5)
+        elif self.__orientation==3:
+            set_bg(1, 0, 0)
+            place_text(("Please", "invert!"), s=64)
+        else:
+            r = 1 if self.__orientation==1 else 0.5
+            g = 0 if self.__orientation==1 else 0.5
+            set_bg(r, g, 0)
+            #place_text(("Please return", "to the upright", "position"), s=36)
+            place_text(self.__rtu_text, s=self.__rtu_size)
+
+        #print(m1)
+        #print(m2)
+        #print(m3)
 
         self.__set_leds()
 
