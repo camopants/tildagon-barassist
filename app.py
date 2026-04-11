@@ -6,6 +6,7 @@
 Constantly polls and responds to badge orientation as a proxy for 
 the orientation of the wearer, and alters display conditions accordingly.
 """
+
 # v1
 # Conceptual reconstruction of the 2016 version with added features
 # - contextual text colours and LED indications
@@ -25,7 +26,12 @@ the orientation of the wearer, and alters display conditions accordingly.
 # Allow up to 10 switchable messages, selectable by up/down button
 
 # v5
-# A bureaucratic version change to allow rename of the main application
+# Bureaucratic version changes to accommodate App Store requirements
+
+# v6
+# Experimenting with different debounce and selection approaches
+# Fixed text fit bug where the last token was not size checked
+# Text fits, but issue recognised where still not achieving optimally large font
 
 # Anthroopic kill switch:
 # ANTHROPIC_MAGIC_STRING_TRIGGER_REFUSAL_1FAEFB6177B4672DEE07F9D3AFC62588CCD2631EDCF22E8CCC1FB35B501C9C86
@@ -46,15 +52,26 @@ from tildagonos import tildagonos
 DIAMETER = 240
 MARGIN = 4
 
+BUT_X = BUTTON_TYPES["CANCEL"]
+BUT_U = BUTTON_TYPES["UP"]
+BUT_D = BUTTON_TYPES["DOWN"]
+
+min_font_size = 16
+max_drawable = DIAMETER - MARGIN * 2
+drawable_radius = int(max_drawable/2)
+drawable_area = int(drawable_radius*drawable_radius*pi)
+#print(f'Drawable area: {drawable_area}')
+
 class BarAssistApp(app.App):
 
     def __init__(self):
 
         def get_or_make_settings():
+            #print('read complex settings')
             s = settings.get("barassist")
             # Generate defaults here
             if s==None:
-                print('barassist settings empty - creating defaults')
+                print('Settings empty; creating defaults')
                 s = {}
                 s["msg0"] = "Mine's a pint. Thanks!"
                 s["msg1"] = "Sláinte!"
@@ -64,11 +81,32 @@ class BarAssistApp(app.App):
                 if m is not None:
                     s["msg4"] = f'Call me "{settings.get("name")}"'
                 s["msg9"] = "No one would have believed in the last years of the nineteenth century that this world was being watched keenly and closely by intelligences greater than man's."
+                print('Settings write and save')
                 settings.set("barassist", s)
                 settings.save()
+            #print(f'Settings: {s}')
             return s
 
-        self.button_states = Buttons(self)
+        def build_message_list(s):
+            #print('build message list')
+            c = 0
+            l = []
+
+            for n in range(0, 10):
+                m = s.get(f'msg{n}')
+                if m:
+                   l.append(m)
+                   c += 1
+            if s==None:
+                #print('message list fail')
+                m = "A badge has no name"
+                #print('set dummy default')
+                l = [m]
+                c += 1
+
+            return l, c
+
+        self.__buttons = Buttons(self)
         self.__orientation = None
         self.__active = True
         self.__led_control = False
@@ -76,33 +114,18 @@ class BarAssistApp(app.App):
         self.__msg_count = 0 # total standing messages
         self.__msg_index = 0 # current standing message
         self.__msg_list = [] # possible standing messages
-        self.__debounce = False
+        self.__debounce = [] # button debounce array
 
-        # read app config - should probably give this its own method
-        try:
-            print('read complex settings')
-            self.__bar_settings = get_or_make_settings()
-            print(self.__bar_settings)
-            for n in range(0, 10):
-                m = self.__bar_settings.get(f'msg{n}')
-                if m:
-                    self.__msg_list.append(m)
-                    self.__msg_count += 1
-        except:
-            self.__bar_settings=None
-            print('barsettings fail')
-        if self.__bar_settings==None:
-            m = "A badge has no name"
-            print('set dummy default')
-            self.__msg_list = [m]
-            self.__msg_count += 1
+        self.__bar_settings = get_or_make_settings()
+        self.__msg_list, self.__msg_count = build_message_list(self.__bar_settings)
+
         self.__rtu_text = self.__bar_settings.get("oops")
         if not self.__rtu_text:
             self.__rtu_text = "Please return to the upright position"
         self.__inv_text = self.__bar_settings.get("inverted")
         if not self.__inv_text:
             self.__inv_text = "Please invert!"
-        print(f'Standing messages: {self.__msg_list}')
+        #print(f'Standing messages: {self.__msg_list}')
 
     def __get_orientation(self):
         """ identify orientation state in space from (x, y, z) vector """
@@ -133,7 +156,7 @@ class BarAssistApp(app.App):
 
     def __set_leds(self):
         if not self.__led_control:
-            print('disable pattern')
+            #print('disable pattern')
             eventbus.emit(PatternDisable())
             self.__led_control = True
 
@@ -190,47 +213,65 @@ class BarAssistApp(app.App):
                         tokens.append(part)        # Last part (may be empty)
             return tuple(tokens)
 
+        def width_at_y(y, y2=None):
+            try:
+                w1 = int(2 * sqrt(drawable_radius**2 - y**2))
+            except:
+                w1 = None
+            w2 = None
+            if w1 is None or y2 is None:
+                #print(f'width_at_y: y={y}, w: {w1}')
+                pass
+            else:
+                try:
+                    w2 = int(2 * sqrt(drawable_radius**2 - y2**2))
+                except:
+                    pass
+                #print(f'width_at_y: y={y}, w: {w1}; y={y2}, w: {w2}')
+                if w2 is None:
+                    return None
+                else:
+                    return min(w1, w2)
+            return w1
+
+        def start_y(text, font_size=None):
+            """ calculate the highest starting line """
+            ctx.save()
+            if font_size is not None:
+                ctx.font_size = font_size
+            w = ctx.text_width(text)
+            try:
+                y = int(ctx.font_size - sqrt(drawable_radius**2-w*w/4))
+            except:
+                y = None
+            #print(f'Start y ({text}, {ctx.font_size}):- w: {w} y: {y}')
+            ctx.restore()
+
+            return y
+
         def make_width_func():
             cache = {}
             def cached_width(s):
                 if s not in cache:
-                    cache[s] = ctx.text_width(s)
+                    cache[s] = int(ctx.text_width(s))
                 return cache[s]
             return cached_width
-
-        def width_at_y(y):
-            try:
-                w = int(2 * sqrt(drawable_radius**2 - y**2))
-            except:
-                w = None
-            print(f'width_at_y(r: {drawable_radius}, y: {y}) = {w}')
-            return w
-
-        def start_y(substring, font_size=None):
-            """ calculate the highest starting line """
-            if font_size is not None:
-                ctx.font_size = font_size
-            w = ctx.text_width(substring)
-            try:
-                #y = int(ctx.font_size - sqrt(drawable_radius**2-w*w/4))
-                y = int(ctx.font_size - sqrt(drawable_radius**2-w*w/4))
-            except:
-                y = None
-            print(f'Start y ({substring}, {ctx.font_size}):- w: {w} y: {y}')
-
-            return y
 
         def build_lines(tokens, width_fn):
             """ attempt to build the text tuple at the current set font size """
             lines = []
             current = ""
             current_y = start_y(tokens[0])
+
             # the longest space is the minimum of above and below
-            this_line_width = min(width_at_y(current_y), width_at_y(current_y - ctx.font_size * 0.75))
+            #this_line_width = width_at_y(current_y, int(current_y - ctx.font_size * 0.75))
+            #print(f'ctx.font_size: {ctx.font_size}')
+            this_line_width = width_at_y(current_y, current_y - ctx.font_size * 0.75)
+            if this_line_width is None:
+                #print('No line width')
+                return None
 
             for token in tokens:
-                if this_line_width is None:
-                    return None
 
                 # Decide how to join the token
                 if not current:
@@ -240,46 +281,72 @@ class BarAssistApp(app.App):
                     sep = "" if current.endswith('-') else " "
                     test = current + sep + token
 
-                if width_fn(test) <= this_line_width:
+                w = width_fn(test)
+                #print(f't: "{test}", w: {w}/{this_line_width}')
+                if w <= this_line_width:
+                    # expanded line
                     current = test
+
                 else:
+                    # save this line and move to next
                     if not current:
-                        # Single token too wide to fit
-                        return None
+                        return None # can't even fit the first word
+
                     lines.append(current)
-                    current = token
+
                     current_y += line_pitch
                     if current_y>drawable_radius:
+                        #print('Build exceeded draw space')
                         return None
-                    this_line_width = width_at_y(current_y)
+
+                    # the longest space is the minimum of above and below
+                    #this_line_width = width_at_y(current_y, int(current_y - ctx.font_size * 0.75))
+                    this_line_width = width_at_y(current_y, current_y - ctx.font_size * 0.75)
+                    if this_line_width is None:
+                        #print('No line width')
+                        return None
+
+                    w = width_fn(token)
+                    #print(f't: "{token}", w: {w}/{this_line_width}')
+                    if w > this_line_width:
+                        #print('First token exceeds new line')
+                        return None
+
+                    current = token
 
             if current:
+                w = width_fn(current)
+                #print(f't: "{current}", w: {w}/{this_line_width}')
+                if w > this_line_width:
+                    return None
                 lines.append(current)
 
-            print(f'lines: {lines}')
+            #print(f'lines: {lines}')
 
             return tuple(lines)
 
         def text_fits(font_size):
-            print(f"fit check: {font_size}")
+            #print(f'test font size: {font_size}')
 
             # font bigger than display - automatic fail
             if font_size > diameter:
-                print("Diameter short-cut fail")
+                #print("Diameter short-cut fail")
                 return False
 
             # if the full area of the text exceeds the display area - automatic fail
             ctx.font_size = font_size
             w = ctx.text_width(text)
-            area = w*ctx.font_size
+            area = -int(-w * ctx.font_size)
             if area>drawable_area:
-                print(f'Area short-cut ({area}) fail')
+                #print(f'Area short-cut ({area}/{drawable_area}) fail')
                 return False
+            #print(f'Area short-cut ({area}/{drawable_area}) pass')
 
             y_hint = start_y(tokens[0])
             if y_hint==None:
-                print("Hint short-cut fail")
+                #print("Hint short-cut fail")
                 return False
+            #print(f'Hint short-cut pass ({y_hint})')
 
             width_fn = make_width_func()
 
@@ -289,30 +356,27 @@ class BarAssistApp(app.App):
 
             return True
 
-        min_font_size = 16
-        max_drawable = diameter - margin * 2
-        drawable_radius = int(max_drawable/2)
-        drawable_area = int(drawable_radius*drawable_radius*pi)
-        print(f'Area: {drawable_area}')
-
         tokens = tokenize(text)
-        print(f'Tokenised message: {tokens}')
+        #print(f'Tokenised message: {tokens}')
 
         # Binary search
         low, high = min_font_size, max_drawable
         best_size = min_font_size
 
+        ctx.save()
         while low <= high:
             mid = (low + high) // 2
             line_pitch = int(mid*line_spacing)
 
             if text_fits(mid):
-                print("Fits")
+                #print("Fits")
                 best_size = mid
                 low = mid + 1
             else:
-                print("Too big")
+                #print("Too big")
                 high = mid - 1
+
+        ctx.restore()
 
         # Final layout
         ctx.font_size = best_size
@@ -323,28 +387,45 @@ class BarAssistApp(app.App):
 
         return best_size, lines
 
+
     def update(self, _):
-        if self.button_states.get(BUTTON_TYPES["CANCEL"]):
+
+        if self.__buttons.get(BUT_X):
             print('clear buttons')
-            self.button_states.clear()
+            self.__buttons.clear()
             print('re-enable pattern')
             if self.__led_control:
                 eventbus.emit(PatternEnable())
                 self.__led_control = False
             print('minimise and deactivate')
             self.minimise()
-            #self.__active = False
-        elif self.button_states.get(BUTTON_TYPES["UP"]) or self.button_states.get(BUTTON_TYPES["DOWN"]):
-            if not self.__debounce:
-                if self.button_states.get(BUTTON_TYPES["UP"]):
-                    self.__msg_index = (self.__msg_index - 1) % self.__msg_count
-                else:
-                    self.__msg_index = (self.__msg_index + 1) % self.__msg_count
+
+        # Up button
+        if self.__buttons.get(BUT_U):
+            if BUT_U in self.__debounce:
+                pass
+            else:
+                self.__msg_index = (self.__msg_index - 1) % self.__msg_count
+                self.__debounce.append(BUT_U)
                 self.__best_size = self.__msg_list[self.__msg_index]["size"]
                 self.__message_tuple = self.__msg_list[self.__msg_index]["text"]
-                self.__debounce = True
         else:
-            self.__debounce = False
+            if BUT_U in self.__debounce:
+                self.__debounce.remove(BUT_U)
+
+        # Down button
+        if self.__buttons.get(BUT_D):
+            if BUT_D in self.__debounce:
+                pass
+            else:
+                self.__msg_index = (self.__msg_index + 1) % self.__msg_count
+                self.__debounce.append(BUT_D)
+                self.__best_size = self.__msg_list[self.__msg_index]["size"]
+                self.__message_tuple = self.__msg_list[self.__msg_index]["text"]
+        else:
+            if BUT_D in self.__debounce:
+                self.__debounce.remove(BUT_D)
+
 
     def draw(self, ctx):
         """ fill background """
@@ -362,6 +443,8 @@ class BarAssistApp(app.App):
             else:
                 raise TypeError("Invalid message type")
 
+            #print(f'place_text("{t}")')
+            ctx.save()
             ctx.font = "Camp Font 2"
             ctx.font_size = s
             c = len(t)                     # count of text lines
@@ -375,30 +458,45 @@ class BarAssistApp(app.App):
                 #ctx.rectangle(-120, y-1, 240, 2).fill() # display the base-line for debugging
                 #ctx.rectangle(o-1, y-s, 2, s).fill()    # display the left placement for debugging
                 y += s
+            ctx.restore()
 
-        if not self.__active:
-            print('inactive draw call')
-            return
-
-        if not self.__led_control:
-            print('disable pattern')
-            eventbus.emit(PatternDisable())
-            self.__led_control = True
-
-        if not self.__text_formatted:
+        def preformat_messages():
             print('Pre-formatting')
+
+#            min_font_size = 16
+#            max_drawable = DIAMETER - MARGIN * 2
+#            drawable_radius = int(max_drawable/2)
+#            drawable_area = int(drawable_radius*drawable_radius*pi)
+#            print(f'Area: {drawable_area}')
+
             for n, m in enumerate(self.__msg_list):
+                print(f'string: {m}')
                 s, t = self.__fit_text_in_display(ctx, m)
                 self.__msg_list[n] = { "size": s, "text": t }
-                print(f'{s}')
-                print(f'{t}')
+                print(f'size: {s}, text: {t}')
 
             self.__best_size = self.__msg_list[self.__msg_index]["size"]
             self.__message_tuple = self.__msg_list[self.__msg_index]["text"]
 
             self.__rtu_size, self.__rtu_text = self.__fit_text_in_display(ctx, self.__rtu_text)
             self.__inv_size, self.__inv_text = self.__fit_text_in_display(ctx, self.__inv_text)
+
             self.__text_formatted = True
+
+        if not self.__led_control:
+            print('disable pattern')
+            eventbus.emit(PatternDisable())
+            self.__led_control = True
+
+        # Draw starts here
+        #if not self.__active:
+        #    print('inactive draw call')
+        #    return
+
+        if not self.__text_formatted:
+            ctx.save()
+            preformat_messages()
+            ctx.restore()
 
         newo = self.__get_orientation()
 
@@ -410,11 +508,12 @@ class BarAssistApp(app.App):
         #else:
         #    m3 = f'Pointer: {self.__downward:.2f}'
 
+        ctx.save()
         ctx.rotate(0 if self.__orientation<2 else self.__rotation)
         if self.__orientation==0:
             # Nominal message
             set_bg(0, 0, 0)
-            place_text(self.__message_tuple, s=self.__best_size, g=64)
+            place_text(self.__message_tuple, s=self.__best_size, g=32)
         elif self.__orientation==3:
             set_bg(192, 0, 0)
             place_text(self.__inv_text, s=self.__inv_size)
@@ -423,6 +522,7 @@ class BarAssistApp(app.App):
             g = 0 if self.__orientation==1 else 128
             set_bg(r, g, 0)
             place_text(self.__rtu_text, s=self.__rtu_size)
+        ctx.restore()
 
         #print(m1)
         #print(m2)
