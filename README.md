@@ -1,5 +1,5 @@
-This is a dummy repo, for linking the working releases of the application into 
-the [Tildagon App Store](https://apps.badge.emfcamp.org/).
+This is a dummy repo, solely for the purpose linking the working releases of the 
+application into the [Tildagon App Store](https://apps.badge.emfcamp.org/).
 
 The live development takes place on [Codeberg](https://codeberg.org/camopants/tildagon-barassist).
 
