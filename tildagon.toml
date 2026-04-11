@@ -28,7 +28,7 @@ author = "Camopants"
 license = "LGPL-3.0-only"
 
 # URL to the repository of your app.
-url = "https://codeberg.org/camopants/tildagon-barassist/app"
+url = "https://codeberg.org/camopants/tildagon-barassist"
 
 # Description of your app.  Maximum 140 characters!
 description = "Orientation assistance for bar patrons"
